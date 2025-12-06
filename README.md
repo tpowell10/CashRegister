@@ -41,3 +41,123 @@ Here are a couple of thoughts about the domain that could influence your respons
 * What might happen if the client needs to change the random divisor?
 * What might happen if the client needs to add another special case (like the random twist)?
 * What might happen if sales closes a new client in France?
+
+---
+
+# Solution
+
+## Quick Start
+
+```bash
+npm install
+npm run dev      # http://localhost:3000
+npm test         # Run all 90 tests
+```
+
+## Features
+
+- **Web UI**: Interactive calculator + file upload with drag-and-drop
+- **Standard Mode**: Returns minimum denominations using a greedy algorithm
+- **Random Mode**: When change (in cents) is divisible by 3, randomizes denominations
+- **Batch Processing**: Upload a file with multiple transactions
+- **Extensible Design**: Easy to add new currencies or special calculation rules
+
+## Architecture
+
+```
+src/
+├── lib/                    # Core business logic
+│   ├── calculator.ts       # Main calculation engine
+│   ├── currencies.ts       # USD/EUR denomination definitions
+│   ├── strategies.ts       # Calculation strategies (min, random)
+│   ├── parser.ts           # Input parsing and validation
+│   ├── errors.ts           # Custom error classes
+│   └── types.ts            # TypeScript interfaces
+├── app/
+│   ├── api/calculate/      # API endpoint
+│   └── page.tsx            # Main UI
+└── components/             # React components
+```
+
+## Addressing "Things To Consider"
+
+### 1. What if the client needs to change the random divisor?
+
+The divisor is a configurable constant in `strategies.ts`:
+
+```typescript
+export const RANDOM_DIVISOR = 3;
+```
+
+Changing this single value updates the behavior everywhere.
+
+### 2. What if the client needs to add another special case?
+
+The calculation uses a **Strategy Pattern**. To add a new rule:
+
+```typescript
+// strategies.ts
+export const myNewStrategy: CalculationStrategy = {
+  name: 'myNewStrategy',
+  shouldApply: (changeInCents) => /* your condition */,
+  calculate: (changeInCents, denominations) => /* your logic */,
+};
+
+// Add to DEFAULT_STRATEGIES array (higher = more priority)
+export const DEFAULT_STRATEGIES = [
+  myNewStrategy,
+  randomWhenDivisibleStrategy,
+  minimumDenominationsStrategy,  // Fallback
+];
+```
+
+### 3. What if sales closes a new client in France?
+
+Currencies are abstracted in `currencies.ts`. EUR is already defined:
+
+```typescript
+import { EUR } from './currencies';
+
+calculateChange(2.50, 5.00, { currency: EUR });
+```
+
+## Technical Decisions
+
+### Floating Point Precision
+
+All calculations are done in cents (integers) to avoid JavaScript floating point issues:
+
+```typescript
+// Bad: 0.1 + 0.2 = 0.30000000000000004
+// Good: 10 + 20 = 30 (cents)
+const changeInCents = dollarsToCents(paid) - dollarsToCents(owed);
+```
+
+### Error Handling
+
+Custom error classes provide specific, actionable feedback:
+
+- `InvalidInputError` - Malformed input with line numbers
+- `InsufficientPaymentError` - Shows shortfall amount
+- `NegativeAmountError` - Rejects negative values
+
+## API
+
+### POST /api/calculate
+
+**Single calculation:**
+```json
+{ "amountOwed": 2.12, "amountPaid": 3.00 }
+```
+
+**Batch calculation:**
+```json
+{ "input": "2.12,3.00\n1.97,2.00" }
+```
+
+## Tech Stack
+
+- **Framework**: Next.js 14 (App Router)
+- **Language**: TypeScript
+- **Styling**: Tailwind CSS
+- **Testing**: Jest (90 tests)
